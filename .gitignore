@@ -3,4 +3,5 @@ pdflatexlog.txt
 *.log
 *.aux
 *.pdf
-
+test.py
+pdflatexlog.txt
