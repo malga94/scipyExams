@@ -1,0 +1,6 @@
+pdflatexlog.txt
+*.tex
+*.log
+*.aux
+*.pdf
+

@@ -5,182 +5,182 @@
 # Test functionality for solving equations, and add proper latex formatting
 
 import sympy as sp
-import numpy as np
+import re
+import random
 
 supported_ftype = {'Rational': ['rational'],
 						'Polynomial': ['poly', 'polynomial'],
 						'Rational Polynomial': ['polyrational'],
-						'Trigonometric': ['trig, trigonometric'] #TODO
+						'Trigonometric': ['trig', 'trigonometric']
 	}
-	
+
 x = sp.symbols('x')
 
 #A class to generate random mathematical functions
 class FunctionGenerator:
 
-	functions = ['sin(&)', 'cos(&)', 'exp(&)']
-	poly_functions = ['&']
-	symbols_for_rational = ['+', '-', '*']
+	def __init__(self, func_type, max_power=4, max_coeff=9, include_special_trig=False):
+		
+		if isinstance(func_type, str):
+			self.ftype = [func_type]
+		else:
+			self.ftype = func_type
 
-	def __init__(self, func_type, max_nesting=1, max_power=4, max_terms=3, max_coeff=9):
-		self.ftype = func_type
-		if not self.check_ftype():
-			s = []
-			for i in supported_ftype.keys():
-				for x in supported_ftype[i]:
-					s.append(x)
-					s.append(', ')
-
-			options = ''.join(s)
-			raise ValueError(f"FunctionGenerator(str): str must be one of the following: {options}")
-
-		self.max_nesting = max_nesting
+		self.check_ftype()
 
 		self.max_power = max_power
-		for i in range(2, self.max_power + 1):
-			self.functions.append(f'&**{str(i)}')
-			self.poly_functions.append(f'&**{str(i)}')
-
-		self.max_terms = max_terms
-		if self.ftype.lower() in supported_ftype['Rational Polynomial']:
-			if self.max_terms > self.max_power:
-				raise ValueError('Keyword argument max_power must be greater or equal to max_terms for the func_type "polyrational"')
-
 		self.max_coeff = max_coeff
 
+		self.include_special_trig = include_special_trig
+
 	def check_ftype(self):
+		#TODO: Test this function
+		for single_type in self.ftype:
 
-		valid = False
-		for i in supported_ftype.keys():
-			if self.ftype.lower() in supported_ftype[i]:
-				valid = True
+			valid = False
+			for i in supported_ftype.keys():
+				
+				if single_type.lower() in supported_ftype[i]:
+					valid = True
 
-		return valid
+			if not valid:
+				s = []
+				for i in supported_ftype.keys():
+					for x in supported_ftype[i]:
+						s.append(x)
+						s.append(', ')
 
-	def rand_function(self, l):
-		
-		selection = np.random.randint(0, len(l))
-		function = l[selection]
-		if '&' in function:
-			coefficient = np.random.randint(1, self.max_coeff + 1)
-			function = str(coefficient) + '*' + function
+				options = ''.join(s)
+				raise ValueError(f"FunctionGenerator(list): str must be one of the following: {options}")
 
-		return function
+	def select_function_type(self):
+
+		x = random.randint(0, len(self.ftype)-1)
+		f = self.ftype[x]
+		return f
 
 	def generate_single_expression(self):
 
-		#Method to generate a random mathematical function f(x)
-		nest = self.max_nesting - 1
+		if len(self.ftype) == 1:
+			function_type = self.ftype[0]
+		else:
+			function_type = self.select_function_type()
 
-		if self.ftype.lower() in ['rational', 'polyrational']:
-			#In this block I wrote the code to generate a random RATIONAL function f(x)/g(x). For polyrational, both f and g are polynomials of degree <= self.max_power. Otherwise they are 
-			#combinations of elementary functions cos(x), sin(x), e^(x), log(x)
-			if self.ftype.lower() in supported_ftype['Rational']:
-				poly = False
-				functions = self.functions.copy()
-				symbols = self.symbols_for_rational.copy()
-			else:
-				poly = True
-				functions = self.poly_functions.copy()
-				symbols = self.symbols_for_rational.copy()
-				symbols.remove('*')
-				#No need for composite functions when we deal only with polynomials
-				nest = 0
-
-			numerator_terms = np.random.randint(1,self.max_terms + 1)
-			denominator_terms = np.random.randint(1,self.max_terms + 1)
-			numerator = ''
-			denominator = ''
-
-			while numerator_terms > 0:
-				f = self.rand_function(functions)
-				numerator += f
-				#For the polynomial case, we don't want same powers to appear twice, as they would simply be summed together. We want all different powers
-				if poly:
-					functions.remove(f[2:])
-				if numerator_terms > 1:
-					numerator += self.rand_function(symbols)
-				numerator_terms -= 1
-
-			if not poly:
-				functions = self.functions.copy()
-			else:
-				functions = self.poly_functions.copy()
-
-			while denominator_terms > 0:
-				f = self.rand_function(functions)
-				denominator += f
-				if poly:
-					functions.remove(f[2:])
-				if denominator_terms > 1:
-					denominator += self.rand_function(symbols)
-				denominator_terms -= 1
-			#print(f"Numerator: {numerator}, Denominator: {denominator}")
-			
-			str_expression = '(' + numerator + ')/(' + denominator + ')'
-
-			while nest > 0:
-				variable_num = str_expression.count('&')
-				for i in range(0, variable_num):
-					r = self.rand_function(functions)
-					str_expression = str_expression.replace('&', r, i)
-				nest -= 1
-
-			str_expression = str_expression.replace('&', 'x')
-			expression = sp.sympify(str_expression)
-
-		if self.ftype.lower() in supported_ftype['Polynomial']:
+		if function_type.lower() in supported_ftype['Polynomial']:
 			polynomial = Polynomial(self.max_power, self.max_coeff)
 			expression = polynomial.generate_polynomial()
 
-		return (expression, self.ftype.lower())
+		if function_type.lower() in supported_ftype['Rational Polynomial']:
+			num_power = random.randint(0, self.max_power)
+			denom_power = random.randint(1, self.max_power)
+
+			rational_polynomial = RationalPolynomial(power_numerator=num_power, power_denominator=denom_power)
+			expression = rational_polynomial.generate_rational_poly()
+
+		if function_type.lower() in supported_ftype['Trigonometric']:
+			trig = TrigFunction(power=self.max_power, max_coeff=self.max_coeff, include_others=self.include_special_trig)
+			expression = trig.generate_trig_function()
+
+		return (expression, function_type.lower())
 
 	def generate(self, n=1):
 
 		#Generating n random functions, as requested by the user. This is the method that should most often be called on a FunctionGenerator object
 		questions = []
+		function_types = []
 		if n <= 0:
 			raise ValueError("generate(int): argument 1 must be > 0 ")
 		for i in range(n):
 			expression = self.generate_single_expression()
 			questions.append(expression[0])
+			function_types.append(expression[1])
 
-		function_type = expression[1]
-
-		return questions, function_type
+		return questions, function_types
 
 #Class to generate a polynomial in sympy
 class Polynomial:
 
 	symbols = ['+', '-']
 
-	def __init__(self, max_power=2, max_coeff=10):
-		self.max_power = max_power
+	def __init__(self, power=2, max_coeff=10):
+		self.power = power
 		self.max_coeff = max_coeff
 
 	def generate_str_polynomial(self):
-		#Here the code to generate a random polynomial of degree <= self.max_power
+		#Here the code to generate a random polynomial of degree = self.power
 		powers_of_x = []
-		for i in range(self.max_power, 1, -1):
+		for i in range(self.power, 1, -1):
 			powers_of_x.append(f'x**{i}')
 		powers_of_x.append('x')
 		symbols_poly = self.symbols
-
-		coeff = np.random.randint(1, self.max_coeff + 1, self.max_power + 1)
-		symbols = np.random.randint(0, len(symbols_poly), self.max_power)
+		coeff, symbols = [], []
+		for i in range(0, self.power+1):
+			coeff.append(random.randint(0, self.max_coeff))			
+			symbols.append(random.randint(0, len(symbols_poly)-1))
 		str_expression = ''
 		for cont, c in enumerate(coeff[:-1]):
 			
-			str_expression = str_expression + str(c) + '*' + powers_of_x[cont] + symbols_poly[symbols[cont]]
+			str_expression = str_expression + symbols_poly[symbols[cont]] + str(c) + '*' + powers_of_x[cont]
 
-		str_expression += str(coeff[-1])
+		str_expression = str_expression + symbols_poly[symbols[-1]] + str(coeff[-1])
+		#We don't need the + before the first term - but we do need a -  if the coefficient is negative
+		if str_expression[0] == '+':
+			str_expression = str_expression[1:]
 
-		return str_expression
+		return str_expression, symbols
 
 	def generate_polynomial(self):
 
-		s = self.generate_str_polynomial()
+		s, _ = self.generate_str_polynomial()
 		expression = sp.sympify(s)
+		return expression
+
+class RationalPolynomial(Polynomial):
+
+	def __init__(self, power_numerator = 2, max_coeff_numerator=10, power_denominator = 4, max_coeff_denominator=10):
+		super().__init__()
+		self.power_d = power_denominator
+		self.max_coeff_d = max_coeff_denominator
+
+	def generate_rational_poly(self):
+		num, _ = super().generate_str_polynomial()
+		den_polynomial = Polynomial(self.power_d, self.max_coeff_d)
+		den, _ = den_polynomial.generate_str_polynomial()
+
+		str_expression = '(' + num + ')/(' + den + ')'
+		expression = sp.sympify(str_expression)
+		return expression
+
+class TrigFunction(Polynomial):
+
+	trig_functions = ['sin(x)', 'cos(x)', 'tan(x)']
+	other_trig_functions = ['sec(x)', 'csc(x)', 'cot(x)', 'asin(x)', 'acos(x)', 'atan(x)']
+
+	def __init__(self, power=2, max_coeff=10, terms=0, include_others=False):
+		super().__init__()
+		self.terms = terms
+		self.special_func = include_others
+		if self.special_func:
+			self.trig_functions.extend(self.other_trig_functions)
+
+	def generate_trig_function(self):
+		p, symbols = self.generate_str_polynomial()
+		p_terms = re.split('\+|\-', p)
+		if p_terms[0] == '':
+			p_terms.pop(0)
+		str_expression = ''
+		
+		for term in range(len(p_terms)):
+			x = random.randint(0,len(self.trig_functions)-1)
+			rand_trig_function = self.trig_functions[x]
+			p_terms[term] = p_terms[term].replace('x', '(' + rand_trig_function + ')')
+			
+			str_expression = str_expression + self.symbols[symbols[term]] + p_terms[term]
+
+		if str_expression[0] == '+':
+			str_expression = str_expression[1:]
+
+		expression = sp.sympify(str_expression)
 		return expression
 
 #An object that takes the random f(x)'s created with FunctionGenerator, and creates a question sheet on a topic chosen by the user (e.g integration) with answers, computed using sympy
@@ -190,7 +190,7 @@ class RandomArticle:
 	ans_length = 40
 	implemented_topics = ['Integration', 'Differentiation', 'SolveAlgebraic']
 
-	def __init__(self, questions, topics, func_type, number_of_questions=0, filename="questions"):
+	def __init__(self, questions, topics, ftypes=None, number_of_questions=0, filename="questions"):
 		self.q = questions
 		self.topics = []
 		for t in topics:
@@ -203,9 +203,15 @@ class RandomArticle:
 			else:
 				self.topics.append(x)
 
-		self.ftype = func_type
+		#If the user didn't pass the list ftypes, which describes which kind of functions were passed in "questions" (i.e polynomials, trig...), then some nice features will not work. 
+		#For consistency, self.ftypes will still be a list of the same length
+		if ftypes == None:
+			self.ftypes = ['']*len(self.q)
+		else:
+			self.ftypes = ftypes
 
 		self.answers = self.answer()
+
 		if number_of_questions > len(self.q):
 			print(f"WARNING: Not enough questions provided to generate {number_of_questions} questions. Only {len(self.q)} can be generated")
 		elif number_of_questions == 0:
@@ -220,7 +226,10 @@ class RandomArticle:
 	def answer(self):
 		#The actual calculation of the answers to the questions is in here
 		answers = []
+		
 		for cont, question in enumerate(self.q):
+
+			ftype = self.ftypes[cont]
 			if self.topics[cont] == 'Integration':
 				try:
 					integral = sp.integrate(question, x)
@@ -232,7 +241,7 @@ class RandomArticle:
 					exit()
 
 				#Answers longer than ans_length are removed only if the function is not polynomial. Integrals of polynomials are always easy so there is no need to remove them for being too hard
-				if len(str(integral)) > self.ans_length and self.ftype.lower() not in supported_ftype['Polynomial']:
+				if len(str(integral)) > self.ans_length and ftype.lower() not in supported_ftype['Polynomial']:
 					integral = 'R'
 				answers.append(integral)
 
@@ -241,8 +250,15 @@ class RandomArticle:
 				answers.append(derivative)
 
 			if self.topics[cont] == 'SolveAlgebraic':
-				solutions = sp.solve(question, x)
-				answers.append(solutions)
+				try:
+					print(question)
+					solutions = sp.solveset(question, x)
+					answers.append(solutions)
+				except NotImplementedError:
+					answers.append('Sympy cannot solve this equation!')
+				except Exception as e:
+					print(f"Error: {str(e)}")
+					exit()
 
 		while 'R' in answers:
 			to_remove = answers.index('R')
@@ -254,7 +270,10 @@ class RandomArticle:
 
 	@staticmethod
 	def choose_random_topic(topics):
-		pass
+		
+		x = random.randint(0, len(topics)-1)
+		random_topic = topics[x]
+		return random_topic
 
 	def prepare_latex_line(self, q, cont):
 
@@ -281,8 +300,9 @@ class RandomArticle:
 			s_q = f"Question {cont+1}: Solve\n" + sp.latex(q, mode='equation') + '\n'
 			s_q = s_q.replace('begin{equation}', 'begin{equation}\\frac{\\partial f}{\\partial x}')
 
-		elif topic.lower() == 'SolveAlgebraic':
+		elif topic.lower() == 'solvealgebraic':
 
+			#print(answer)
 			if len(answer) == 1:
 				s_ans = f"Answer to question {cont+1}\n" + f'The solution is {answer[0]}' + '\n'
 			else:
@@ -309,7 +329,7 @@ class RandomArticle:
 		topics = self.topics
 		filename = self.filename
 
-		data = ['\\documentclass[12pt]{article}\n', '\\usepackage{fancyhdr}\n', '\\pagestyle{fancy}\n', '\\rhead{' + f'Generated with Sympy on {self.today_date}' + '}\n' '\\begin{document}\n', '\\section{Questions}']	
+		data = ['\\documentclass[12pt]{article}\n', '\\usepackage{fancyhdr}\n', '\\pagestyle{fancy}\n', '\\rhead{' + f'Generated with Sympy on {self.today_date}' + '}\n', '\\begin{document}\n', '\\section{Questions}']	
 		answers = ["\\newpage\n \\section{Answer Sheet}\n\n"]
 
 		for cont, q in enumerate(questions):
@@ -321,7 +341,15 @@ class RandomArticle:
 		data.append('\\end{document}')
 		filename += '.tex'
 		s = ''.join(data)
-		s = s.replace('operatorname{atan}', 'arctan')
+		#Replace the sympy names with the Latex names of some trigonometric functions
+		sympy_to_latex = {
+			'atan': 'arctan',
+			'acos': 'arccos',
+			'asin': 'arcsin',
+		}
+		for key, value in sympy_to_latex.items():
+			s = s.replace('operatorname{' + f'{key}' + '}', f'{value}')
+
 		with open(filename, 'w') as f:
 			f.write(s)
 
@@ -335,5 +363,6 @@ class RandomArticle:
 		
 		os.system(f"echo 'GENERATENEWPDF {self.today_date}\n\n' >> pdflatexlog.txt")
 		os.system(f"pdflatex {filename}.tex {filename}.pdf >> pdflatexlog.txt")
+		
 
 
