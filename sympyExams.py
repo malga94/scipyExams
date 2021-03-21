@@ -1,12 +1,14 @@
 #TODO:
-# Write README and manual
-# Solve issue with saving date on the log file of pdflatex
+# Write manual
 # Solve issue with polyrational not having a constant term (only terms from x^1 upwards)
 # Test functionality for solving equations, and add proper latex formatting
+# Change the automatic naming of files (the default is now always questions.pdf) so that older files are not overwritten. Maybe the format can be questions_topic_n.pdf where topic=[integrals, derivatives...] and n is an integer starting from 1
 
+import os
 import sympy as sp
 import re
 import random
+import math
 
 supported_ftype = {'Rational': ['rational'],
 						'Polynomial': ['poly', 'polynomial'],
@@ -14,44 +16,49 @@ supported_ftype = {'Rational': ['rational'],
 						'Trigonometric': ['trig', 'trigonometric']
 	}
 
+supported_etype = {'NestedRadicals': ['nestedradical', 'nestedradicals', 'nestedroot', 'nestedroots', 'nestedsquareroot', 'nestedsquareroots'],
+						
+	}
+
 x = sp.symbols('x')
 
 #A class to generate random mathematical functions
 class FunctionGenerator:
 
-	def __init__(self, func_type, max_power=4, max_coeff=9, include_special_trig=False):
+	def __init__(self, func_type, max_power=4, max_coeff=9, include_special_trig=False, d=supported_ftype):
 		
+		#func_type should be a list, but if a single functiontype has to be passed, a string can be used as well. We make sure to have a list in any case
 		if isinstance(func_type, str):
 			self.ftype = [func_type]
 		else:
 			self.ftype = func_type
 
-		self.check_ftype()
+		self.check_ftype(d)
 
 		self.max_power = max_power
 		self.max_coeff = max_coeff
 
 		self.include_special_trig = include_special_trig
 
-	def check_ftype(self):
-		#TODO: Test this function
+	def check_ftype(self, d):
+		
 		for single_type in self.ftype:
 
 			valid = False
-			for i in supported_ftype.keys():
+			for i in d.keys():
 				
-				if single_type.lower() in supported_ftype[i]:
+				if single_type.lower() in d[i]:
 					valid = True
 
 			if not valid:
 				s = []
-				for i in supported_ftype.keys():
-					for x in supported_ftype[i]:
+				for i in d.keys():
+					for x in d[i]:
 						s.append(x)
 						s.append(', ')
 
 				options = ''.join(s)
-				raise ValueError(f"FunctionGenerator(list): str must be one of the following: {options}")
+				raise ValueError(f"FunctionGenerator(list): All str in the first positional argument of FunctionGenerator must be one of the following: {options}not '{single_type}'.")
 
 	def select_function_type(self):
 
@@ -96,6 +103,32 @@ class FunctionGenerator:
 			function_types.append(expression[1])
 
 		return questions, function_types
+
+#A class to handle the generation of mathematical expressions, excluding functions (see the class FunctionGenerator for those)
+class ExpressionGenerator(FunctionGenerator):
+	
+	def __init__(self, expr_type, d=supported_etype):
+		super().__init__(expr_type, d=supported_etype)
+		self.initialize_nestedradicals()
+
+	def initialize_nestedradicals(self):
+
+		for i in self.ftype:
+			if i in supported_etype['NestedRadicals']:
+				self.nested_radical = NestedRadical()
+				self.nested_radical.generate_solvable_nested_radicals()
+
+	def generate_single_expression(self):
+
+		if len(self.ftype) == 1:
+			expression_type = self.ftype[0]
+		else:
+			expression_type = super().select_function_type()
+
+		if expression_type.lower() in supported_etype['NestedRadicals']:
+			expression = self.nested_radical.get_expression()
+			
+		return (expression, expression_type.lower())
 
 #Class to generate a polynomial in sympy
 class Polynomial:
@@ -183,26 +216,57 @@ class TrigFunction(Polynomial):
 		expression = sp.sympify(str_expression)
 		return expression
 
+class NestedRadical:
+
+	def __init__(self):
+
+		self.denestable_square_roots = []
+
+	def generate_solvable_nested_radicals(self):
+		for i in range(1, 100):
+			for j in range(1, min(i**2, 144)):
+				n = i**2 - j
+		
+				if self.perfect_square(n) and not self.perfect_square(j):
+					self.denestable_square_roots.append(sp.sqrt(i + sp.sqrt(j)))
+
+	@staticmethod
+	def perfect_square(n):
+		root = math.sqrt(n)
+		return n == int(root + 0.5)**2
+
+	def get_expression(self):
+		x = random.randint(0, len(self.denestable_square_roots)-1)
+		return self.denestable_square_roots[x]
+
+	@classmethod
+	def solve_nested_radical(cls, expr):
+		#Algorithm to write a nested square root, √w = √(a+√b) as sum of integers and square roots:
+		#Take w = a+√b, w' = a-√b. Compute s = w - √(ww'). Finally, √w = s/√(s+s') where s' is the same as s with the coefficient of the square root part changed of sign
+		w = str(expr**2)
+		a = int(w.split('+')[1])
+		b = int(sp.sympify(w.split('+')[0])**2)
+		
+		if not cls.perfect_square(a**2 - b):
+			return 0
+
+		non_root_part = a - int(math.sqrt(abs(a**2 - b)))
+		root_part = b
+		denested_root = sp.sympify((non_root_part + sp.sqrt(root_part))/sp.sqrt(2*non_root_part))
+		return sp.simplify(denested_root)
+
 #An object that takes the random f(x)'s created with FunctionGenerator, and creates a question sheet on a topic chosen by the user (e.g integration) with answers, computed using sympy
 class RandomArticle:
 
 	#Maximum length (as in len(str)) of the answer to a question, to avoid crazy integrals and derivatives which no human would ever find useful to compute by hand
 	ans_length = 40
-	implemented_topics = ['Integration', 'Differentiation', 'SolveAlgebraic']
+	implemented_topics = ['Integration', 'Differentiation', 'SolveAlgebraic', 'NestedSquareRoots']
 
-	def __init__(self, questions, topics, ftypes=None, number_of_questions=0, filename="questions"):
+	def __init__(self, questions, topics, ftypes=None, number_of_questions=0, filename="", overwrite=True):
+		
 		self.q = questions
 		self.topics = []
-		for t in topics:
-			if t not in self.implemented_topics:
-				raise ValueError(f"Topic {t} does not exist. See the documentation for the list of topics")
-		x = topics[0]
-		for i in range(len(self.q)):
-			if len(topics) > 1:
-				self.topics.append(choose_random_topic(topics))
-			else:
-				self.topics.append(x)
-
+		self.check_topics(topics)
 		#If the user didn't pass the list ftypes, which describes which kind of functions were passed in "questions" (i.e polynomials, trig...), then some nice features will not work. 
 		#For consistency, self.ftypes will still be a list of the same length
 		if ftypes == None:
@@ -222,6 +286,21 @@ class RandomArticle:
 		self.filename = filename
 		if len(filename.split('.')) > 1:
 			raise ValueError("to_pdf(str): str must not contain the '.'character. The extension of the file is not needed (do not add .tex at the end)")
+		
+		self.overwrite = overwrite
+
+	def check_topics(self, topics):
+	
+		for t in topics:
+			if t not in self.implemented_topics:
+				raise ValueError(f"Topic {t} does not exist. See the documentation for the list of topics")
+
+		x = topics[0]
+		for i in range(len(self.q)):
+			if len(topics) > 1:
+				self.topics.append(choose_random_topic(topics))
+			else:
+				self.topics.append(x)
 
 	def answer(self):
 		#The actual calculation of the answers to the questions is in here
@@ -259,6 +338,10 @@ class RandomArticle:
 				except Exception as e:
 					print(f"Error: {str(e)}")
 					exit()
+
+			if self.topics[cont] == 'NestedSquareRoots':
+				solution = NestedRadical.solve_nested_radical(question)
+				answers.append(solution)
 
 		while 'R' in answers:
 			to_remove = answers.index('R')
@@ -302,7 +385,6 @@ class RandomArticle:
 
 		elif topic.lower() == 'solvealgebraic':
 
-			#print(answer)
 			if len(answer) == 1:
 				s_ans = f"Answer to question {cont+1}\n" + f'The solution is {answer[0]}' + '\n'
 			else:
@@ -313,6 +395,10 @@ class RandomArticle:
 				s_ans += f' {answer[i]}\n'
 			s_q = f"Question {cont+1}: Solve\n" + sp.latex(q, mode='equation') + '\n'
 
+		elif topic.lower() == 'nestedsquareroots':
+			s_ans = f"Answer to question {cont+1}\n" + sp.latex(answer, mode='equation') + '\n'
+			s_q = f"Question {cont+1}: Simplify\n" + sp.latex(q, mode='equation') + '\n'
+
 		return s_ans, s_q
 
 	@staticmethod
@@ -322,12 +408,29 @@ class RandomArticle:
 		date = now.strftime("%d/%m/%Y, %H:%M:%S")
 		return date
 
+	def generate_consecutive_filename(self):
+		if self.overwrite:
+			return str(self.topics[0])
+		ls = os.listdir()
+		pdf_files = [i for i in ls if i[-3:] == 'pdf']
+		topic_files = [i for i in pdf_files if str(self.topics[0]) in i]
+		num = len(topic_files) + 1
+		filename = str(self.topics[0]) + str(num)
+		while filename in topic_files:
+			num += 1
+			filename = str(self.topics[0]) + str(num)
+		return filename
+
 	def cheatsheet(self, exam=False):
 		#Function to prepare the LATEX document with the random questions
 		self.today_date = self.construct_date()
 		questions = self.q
 		topics = self.topics
 		filename = self.filename
+		if not filename:
+			filename = self.generate_consecutive_filename()
+
+		filename += '.tex'
 
 		data = ['\\documentclass[12pt]{article}\n', '\\usepackage{fancyhdr}\n', '\\pagestyle{fancy}\n', '\\rhead{' + f'Generated with Sympy on {self.today_date}' + '}\n', '\\begin{document}\n', '\\section{Questions}']	
 		answers = ["\\newpage\n \\section{Answer Sheet}\n\n"]
@@ -339,7 +442,6 @@ class RandomArticle:
 
 		data.extend(answers)
 		data.append('\\end{document}')
-		filename += '.tex'
 		s = ''.join(data)
 		#Replace the sympy names with the Latex names of some trigonometric functions
 		sympy_to_latex = {
@@ -358,9 +460,9 @@ class RandomArticle:
 	def to_pdf(self):
 
 		filename = self.filename
-
-		import os
-		
+		if not filename:
+			filename = self.generate_consecutive_filename()
+			
 		os.system(f"echo 'GENERATENEWPDF {self.today_date}\n\n' >> pdflatexlog.txt")
 		os.system(f"pdflatex {filename}.tex {filename}.pdf >> pdflatexlog.txt")
 		

@@ -1,16 +1,13 @@
 
-from sympyExams import FunctionGenerator, Polynomial, RationalPolynomial, RandomArticle, TrigFunction
+from sympyExams import FunctionGenerator, ExpressionGenerator, RandomArticle
 
-# function = FunctionGenerator('poly')
-# questions, ftype = function.generate(10)
+x = ExpressionGenerator(['nestedradical'])
+expressions, types = x.generate(10)
+exam = RandomArticle(expressions, ['NestedSquareRoots'])
 
-# article = RandomArticle(questions, ["Integration"], ftype)
-# article.cheatsheet()
-# article.to_pdf()
+# x = FunctionGenerator(['trig', 'poly'], include_special_trig=True)
+# functions, _ = x.generate(10)
+#exam = RandomArticle(functions, ['Integration'])
 
-x = FunctionGenerator(['trig', 'poly'], include_special_trig=True)
-functions, _ = x.generate(10)
-
-exam = RandomArticle(functions, ['Integration'])
 exam.cheatsheet()
 exam.to_pdf()

@@ -4,4 +4,4 @@ pdflatexlog.txt
 *.aux
 *.pdf
 test.py
-pdflatexlog.txt
+temp.py
