@@ -104,6 +104,20 @@ class FunctionGenerator:
 
 		return questions, function_types
 
+	def __repr__(self):
+		s = f"{self.__class__.__name__}({self.ftype}"
+		if self.max_power != 4:
+			s += ', max_power={}'.format(self.max_power)
+		if self.max_coeff != 9:
+			s += ', max_coeff={}'.format(self.max_coeff)
+		if self.include_special_trig:
+			s += ', include_special_trig=True'
+		s += ')'
+		return s
+
+	def __str__(self):
+		return f"{self.ftype}"
+
 #A class to handle the generation of mathematical expressions, excluding functions (see the class FunctionGenerator for those)
 class ExpressionGenerator(FunctionGenerator):
 	
@@ -129,6 +143,12 @@ class ExpressionGenerator(FunctionGenerator):
 			expression = self.nested_radical.get_expression()
 			
 		return (expression, expression_type.lower())
+
+	def __repr__(self):
+		return f"{self.__class__.__name__}({self.ftype})"
+
+	def __str__(self):
+		return f"{self.ftype}"
 
 #Class to generate a polynomial in sympy
 class Polynomial:
@@ -265,6 +285,7 @@ class RandomArticle:
 	def __init__(self, questions, topics, ftypes=None, number_of_questions=0, filename="", overwrite=True):
 		
 		self.q = questions
+		
 		self.topics = []
 		self.check_topics(topics)
 		#If the user didn't pass the list ftypes, which describes which kind of functions were passed in "questions" (i.e polynomials, trig...), then some nice features will not work. 
